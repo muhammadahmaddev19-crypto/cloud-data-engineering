@@ -14,10 +14,10 @@
 -- ============================================================
 
 -- Write your query below:
-
-
-
-
+select first_name, last_name, city, phone
+from sales.customers
+where state = 'ca'
+and phone is not null;
 -- ============================================================
 --  Question 2 — ORDER BY (Multiple Columns)
 --  Fetch the product_id, product_name, model_year, and
@@ -27,10 +27,10 @@
 -- ============================================================
 
 -- Write your query below:
-
-
-
-
+select product_id, product_name, model_year, list_price
+from production.products
+order by model_year desc
+list_price asc;
 -- ============================================================
 --  Question 3 — TOP N & TOP PERCENT
 --  a) Return the top 5 most expensive products showing only
@@ -41,12 +41,12 @@
 -- ============================================================
 
 -- Part a:
-
-
+select top 5 product_name, list_price
+from production.products order by list_price desc;
 -- Part b:
-
-
-
+select top 5 * percent 
+from production.products
+order by list_price desc;
 
 -- ============================================================
 --  Question 4 — OFFSET & FETCH (Pagination)
@@ -59,16 +59,16 @@
 -- ============================================================
 
 -- Page 1:
-
-
+select product_id, product_name, list_price from production.products
+order by list_price desc offset 0 rows fetch next 10 rowsonly;
 -- Page 2:
-
-
+select product_id, product_name, list_price from production.products
+order by list_price desc offset 10 rows fetch next 10 rowsonly;
 -- Page 3:
-
-
-
-
+select product_id, product_name, list price
+from production.products
+order by list_price desc
+offset 20 rows fetch next 10 rows only;
 -- ============================================================
 --  Question 5 — DISTINCT
 --  a) List all unique states in which BikeStores has customers.
@@ -81,15 +81,15 @@
 -- ============================================================
 
 -- Part a:
-
-
+select distinct state from sales.customers
+order by state asc;
 -- Part b:
-
-
+select distinct state, city from sales.customers
+order by state asc, city asc;
 -- Part c:
-
-
-
+select distinct model_year 
+from production.products
+order by model_year;
 
 -- ============================================================
 --  Question 6 — Logical Operators (AND / OR)
@@ -103,3 +103,8 @@
 -- ============================================================
 
 -- Write your query below:
+select product_id, product_name, brand_name, category_id, list_price
+from production.products
+where list_price between 500 and 1500
+and (model_year = 2019 or model_year = 2020)
+order by list_price asc;
