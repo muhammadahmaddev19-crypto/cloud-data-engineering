@@ -17,24 +17,24 @@
 -- — both staff members and customers.
 -- Build a unified list showing full name and email for all of them.
 -- Make sure no one is accidentally listed twice.
-
-
-
+SELECT first_name + ' ' + last_name AS full_name, email FROM sales.staffs
+UNION
+SELECT first_name + ' ' + last_name AS full_name, email FROM sales.customers;
 -- Q2.
 -- The logistics team wants to know which states have BOTH
 -- a store location AND customers living there.
 -- Find those states.
-
-
-
+SELECT state FROM sales.stores
+INTERSECT
+SELECT state FROM sales.customers;
 -- Q3.
 -- Management wants to identify stores that received zero orders
 -- in the year 2018.
 -- Find the store_ids that appear in sales.stores but did NOT
 -- receive any orders in 2018.
-
-
-
+SELECT store_id FROM sales.stores
+EXCEPT
+SELECT store_id FROM sales.orders WHERE YEAR(order_date) = 2018;
 -- ============================================================
 --  SECTION B — CTEs
 -- ============================================================
@@ -44,26 +44,64 @@
 -- For each category, find all products whose list_price is
 -- higher than the average list_price of their own category.
 -- Show category_id, product_name, list_price, and the category average.
-
-
-
+WITH CategoryAverage AS (
+    SELECT 
+        category_id, 
+        AVG(list_price) AS avg_price
+    FROM production.products
+    GROUP BY category_id
+)
+SELECT 
+    p.category_id, 
+    p.product_name, 
+    p.list_price, 
+    ca.avg_price AS category_average
+FROM production.products p
+JOIN CategoryAverage ca ON p.category_id = ca.category_id
+WHERE p.list_price > ca.avg_price;
 -- Q5.
 -- HR wants to reward the hardest-working staff member.
 -- Find all staff members whose order count is higher than
 -- the average order count across all staff.
 -- Show staff_id and their order_count.
-
-
-
+WITH StaffOrderCounts AS (
+    SELECT 
+        staff_id, 
+        COUNT(order_id) AS order_count
+    FROM sales.orders
+    GROUP BY staff_id
+),
+OverallAverage AS (
+    SELECT AVG(CAST(order_count AS DECIMAL(10,2))) AS avg_orders 
+    FROM StaffOrderCounts
+)
+SELECT 
+    soc.staff_id, 
+    soc.order_count
+FROM StaffOrderCounts soc
+CROSS JOIN OverallAverage oa
+WHERE soc.order_count > oa.avg_orders;
 -- Q6.
 -- The finance team needs a yearly performance report per store.
 -- For each store and each year, calculate total revenue.
 -- Then find only the years where a store's revenue
 -- exceeded $1,000,000.
 -- Show store_id, year, and total_revenue.
-
-
-
+WITH StoreRevenue AS (
+    SELECT 
+        o.store_id,
+        YEAR(o.order_date) AS order_year,
+        SUM(i.quantity * i.list_price * (1 - i.discount)) AS total_revenue
+    FROM sales.orders o
+    JOIN sales.order_items i ON o.order_id = i.order_id
+    GROUP BY o.store_id, YEAR(o.order_date)
+)
+SELECT 
+    store_id, 
+    order_year AS year, 
+    total_revenue
+FROM StoreRevenue
+WHERE total_revenue > 1000000;
 -- ============================================================
 --  SECTION C — CONSTRAINTS (DDL)
 -- ============================================================
@@ -98,9 +136,18 @@
 -- INSERT INTO sales.loyalty_cards VALUES (1001, 4,  100,  'Gold',   '2024-07-01'); -- duplicate card_number
 -- INSERT INTO sales.loyalty_cards VALUES (1004, 1,  -50,  'Silver', '2024-08-01'); -- negative points
 -- INSERT INTO sales.loyalty_cards VALUES (1005, 5,  200,  'Diamond','2024-09-01'); -- invalid tier
-
-
-
+CREATE TABLE sales.loyalty_cards (
+    card_number   INT PRIMARY KEY,
+    customer_id   INT NOT NULL,
+    points        INT NOT NULL CHECK (points >= 0), 
+    tier          VARCHAR(10) NOT NULL CHECK (tier IN ('Bronze', 'Silver', 'Gold')),
+    join_date     DATE NOT NULL, -- Makes date required
+    FOREIGN KEY (customer_id) REFERENCES sales.customers(customer_id) ON DELETE CASCADE
+);
+-- Validation Checks: Run to test the setup
+INSERT INTO sales.loyalty_cards VALUES (1001, 1,  500,  'Gold',   '2024-01-15'); -- PASS
+INSERT INTO sales.loyalty_cards VALUES (1002, 2,  150,  'Silver', '2024-03-22'); -- PASS
+INSERT INTO sales.loyalty_cards VALUES (1003, 3,  0,    'Bronze', '2024-06-01'); 
 -- Q8.
 -- The operations team realized that some orders in the database have
 -- a shipped_date that is earlier than the order_date, which is impossible.
@@ -123,9 +170,8 @@
 -- After adding it, test with:
 -- INSERT INTO test_orders VALUES (4, '2024-04-10', '2024-04-08'); -- should FAIL
 -- INSERT INTO test_orders VALUES (5, '2024-04-10', '2024-04-15'); -- should PASS
-
-
-
+ALTER TABLE test_orders
+ADD CONSTRAINT chk_shipped_date CHECK (shipped_date >= order_date);
 -- ============================================================
 --  SECTION D — CASE EXPRESSIONS
 -- ============================================================
@@ -138,9 +184,17 @@
 --   - 'Delayed'  — shipped after 5 days
 --   - 'Pending'  — not yet shipped (shipped_date is NULL)
 -- Show order_id, order_date, shipped_date, and shipping_speed.
-
-
-
+SELECT 
+    order_id, 
+    order_date, 
+    shipped_date,
+    CASE 
+        WHEN shipped_date IS NULL THEN 'Pending'
+        WHEN DATEDIFF(day, order_date, shipped_date) <= 2 THEN 'Fast'
+        WHEN DATEDIFF(day, order_date, shipped_date) BETWEEN 3 AND 5 THEN 'Normal'
+        ELSE 'Delayed'
+    END AS shipping_speed
+FROM sales.orders;
 -- Q10.
 -- The warehouse team wants to label stock levels for each product per store.
 -- Using production.stocks:
@@ -150,9 +204,18 @@
 --   - 'Well Stocked'  — quantity above 50
 -- Show store_id, product_id, quantity, and stock_status.
 -- Sort by store_id, then quantity ascending.
-
-
-
+SELECT 
+    store_id, 
+    product_id, 
+    quantity,
+    CASE 
+        WHEN quantity = 0 THEN 'Out of Stock'
+        WHEN quantity BETWEEN 1 AND 10 THEN 'Low Stock'
+        WHEN quantity BETWEEN 11 AND 50 THEN 'Sufficient'
+        ELSE 'Well Stocked'
+    END AS stock_status
+FROM production.stocks
+ORDER BY store_id ASC, quantity ASC;
 -- ============================================================
 --  END OF ASSIGNMENT 04
 -- ============================================================
